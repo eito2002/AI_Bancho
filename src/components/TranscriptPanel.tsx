@@ -3,8 +3,8 @@
 import { useState, useEffect, useRef } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { TranscriptData, TranscriptEntry } from '@/types';
-import { Mic, MicOff, Send, User, Clock } from 'lucide-react';
+import { TranscriptData } from '@/types';
+import { Mic, MicOff, Send, User, Clock, Trash2 } from 'lucide-react';
 
 interface TranscriptPanelProps {
   topicId: string;
@@ -78,6 +78,34 @@ export function TranscriptPanel({
     }
   };
 
+  const deleteTranscriptEntry = async (entryId: string) => {
+    if (!confirm('この録音を削除しますか？')) return;
+
+    try {
+      const response = await fetch('/api/transcript', {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          topicId,
+          entryId,
+        }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setTranscript(result.data);
+      } else {
+        alert('削除に失敗しました: ' + result.error);
+      }
+    } catch (error) {
+      console.error('Error deleting transcript entry:', error);
+      alert('削除中にエラーが発生しました');
+    }
+  };
+
   const toggleRecording = () => {
     setIsRecording(!isRecording);
     // 実際の音声認識APIとの連携はここで実装
@@ -130,7 +158,10 @@ export function TranscriptPanel({
       {/* 文字起こしログ */}
       <div ref={scrollRef} className="flex-1 overflow-y-auto p-3 space-y-2">
         {transcript?.entries.map((entry) => (
-          <div key={entry.id} className="bg-gray-50 rounded-lg p-3">
+          <div
+            key={entry.id}
+            className="bg-gray-50 rounded-lg p-3 group hover:bg-gray-100 transition-colors"
+          >
             <div className="flex items-center gap-2 mb-1">
               <User className="h-3 w-3 text-gray-500" />
               <span className="text-xs font-medium text-gray-700">
@@ -140,6 +171,15 @@ export function TranscriptPanel({
               <span className="text-xs text-gray-500">
                 {formatTime(entry.timestamp)}
               </span>
+              <Button
+                size="sm"
+                variant="ghost"
+                onClick={() => deleteTranscriptEntry(entry.id)}
+                className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100 transition-opacity text-red-500 hover:text-red-700 hover:bg-red-50"
+                title="録音を削除"
+              >
+                <Trash2 className="h-3 w-3" />
+              </Button>
             </div>
             <p className="text-sm text-gray-900">{entry.text}</p>
             {entry.confidence && (

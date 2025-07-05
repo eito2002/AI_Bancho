@@ -349,8 +349,13 @@ export function IdeaEvaluationModal({
     <Dialog open={isOpen} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[800px] max-h-[90vh] flex flex-col overflow-hidden">
         <DialogHeader>
-          <DialogTitle className="text-gray-800">
-            {step === 'input' && 'アイデアの基本情報'}
+          <DialogTitle className="flex items-center gap-2 text-gray-800">
+            {step === 'input' && (
+              <>
+                <Lightbulb className="h-5 w-5 text-yellow-500" />
+                アイデアの基本情報
+              </>
+            )}
             {step === 'chat' && 'アイデアの評価'}
             {step === 'confirm' && 'アイデアの追加確認'}
             {step === 'summary' && '評価完了'}

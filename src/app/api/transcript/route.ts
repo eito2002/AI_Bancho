@@ -128,6 +128,78 @@ export async function POST(
   }
 }
 
+// DELETE /api/transcript - 文字起こしエントリ削除
+export async function DELETE(
+  request: NextRequest
+): Promise<NextResponse<ApiResponse<TranscriptData>>> {
+  try {
+    const body = await request.json();
+    const { topicId, entryId } = body;
+
+    if (!topicId || !entryId) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Topic ID and entry ID are required',
+        },
+        { status: 400 }
+      );
+    }
+
+    const topic = await getTopicData(topicId);
+    if (!topic) {
+      return NextResponse.json(
+        {
+          success: false,
+          error: 'Topic not found',
+        },
+        { status: 404 }
+      );
+    }
+
+    // 既存の文字起こしデータから指定されたエントリを削除
+    const currentTranscript = topic.transcript || {
+      entries: [],
+      lastUpdated: new Date(),
+    };
+
+    const updatedEntries = currentTranscript.entries.filter(
+      (entry) => entry.id !== entryId
+    );
+
+    const updatedTranscript: TranscriptData = {
+      entries: updatedEntries,
+      summary:
+        updatedEntries.length > 0
+          ? await generateTranscriptSummary(updatedEntries)
+          : undefined,
+      lastUpdated: new Date(),
+    };
+
+    // トピックデータを更新
+    const updatedTopic = {
+      ...topic,
+      transcript: updatedTranscript,
+    };
+
+    await saveTopicData(topicId, updatedTopic);
+
+    return NextResponse.json({
+      success: true,
+      data: updatedTranscript,
+    });
+  } catch (error) {
+    console.error('Error deleting transcript entry:', error);
+    return NextResponse.json(
+      {
+        success: false,
+        error: 'Failed to delete transcript entry',
+      },
+      { status: 500 }
+    );
+  }
+}
+
 async function generateTranscriptSummary(
   entries: TranscriptEntry[]
 ): Promise<string> {

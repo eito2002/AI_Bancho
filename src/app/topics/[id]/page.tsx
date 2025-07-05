@@ -3,7 +3,9 @@
 import React, { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
 import { IdeaEvaluationModal } from '@/components/IdeaEvaluationModal';
+import { QuickIdeaModal } from '@/components/QuickIdeaModal';
 import { JudgeModal } from '@/components/JudgeModal';
 import { ResultPopup } from '@/components/ResultPopup';
 import { TranscriptPanel } from '@/components/TranscriptPanel';
@@ -17,6 +19,9 @@ import {
   BarChart3,
   ChevronDown,
   ChevronRight,
+  Edit3,
+  Check,
+  X,
 } from 'lucide-react';
 
 export default function TopicDetailPage() {
@@ -25,12 +30,19 @@ export default function TopicDetailPage() {
   const [topic, setTopic] = useState<TopicDetail | null>(null);
   const [loading, setLoading] = useState(true);
   const [isIdeaModalOpen, setIsIdeaModalOpen] = useState(false);
+  const [isQuickIdeaModalOpen, setIsQuickIdeaModalOpen] = useState(false);
   const [isJudgeModalOpen, setIsJudgeModalOpen] = useState(false);
   const [isAddAxisModalOpen, setIsAddAxisModalOpen] = useState(false);
   const [judgeResult, setJudgeResult] = useState<JudgeResult | null>(null);
   const [isResultPopupOpen, setIsResultPopupOpen] = useState(false);
   const [isTranscriptPanelOpen, setIsTranscriptPanelOpen] = useState(false);
   const [expandedIdeas, setExpandedIdeas] = useState<Set<string>>(new Set());
+  // 評価編集用のステート
+  const [editingEvaluation, setEditingEvaluation] = useState<{
+    ideaId: string;
+    axis: string;
+  } | null>(null);
+  const [editingValue, setEditingValue] = useState('');
 
   useEffect(() => {
     if (params.id) {
@@ -159,6 +171,113 @@ export default function TopicDetailPage() {
       }
       return newSet;
     });
+  };
+
+  // 評価編集機能
+  const handleEditEvaluation = (
+    ideaId: string,
+    axis: string,
+    currentValue: string
+  ) => {
+    setEditingEvaluation({ ideaId, axis });
+    setEditingValue(currentValue || '');
+  };
+
+  const handleSaveEvaluation = async () => {
+    if (!editingEvaluation || !topic) return;
+
+    const { ideaId, axis } = editingEvaluation;
+    const updatedIdeas = topic.ideas.map((idea) => {
+      if (idea.id === ideaId) {
+        return {
+          ...idea,
+          evaluations: {
+            ...idea.evaluations,
+            [axis]: editingValue.trim(),
+          },
+        };
+      }
+      return idea;
+    });
+
+    try {
+      const response = await fetch(`/api/topics/${topic.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ideas: updatedIdeas }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setTopic(result.data);
+        setEditingEvaluation(null);
+        setEditingValue('');
+      } else {
+        console.error('Failed to update evaluation:', result.error);
+      }
+    } catch (error) {
+      console.error('Error updating evaluation:', error);
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setEditingEvaluation(null);
+    setEditingValue('');
+  };
+
+  // クイックアイデア追加機能
+  const handleQuickAddIdea = async (ideaName: string, description: string) => {
+    if (!topic) return;
+
+    try {
+      // AIによる自動評価を生成
+      const evaluationResponse = await fetch('/api/auto-evaluate', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          ideaName,
+          description,
+          axes: topic.axes,
+          topicName: topic.name,
+          topicGoal: topic.goal,
+        }),
+      });
+
+      const evaluationResult = await evaluationResponse.json();
+      const evaluations = evaluationResult.success ? evaluationResult.data : {};
+
+      const newIdea: Idea = {
+        id: Date.now().toString(),
+        name: ideaName,
+        description: description || undefined,
+        evaluations, // AIが生成した評価
+      };
+
+      const updatedIdeas = [...topic.ideas, newIdea];
+
+      const response = await fetch(`/api/topics/${topic.id}`, {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ideas: updatedIdeas }),
+      });
+
+      const result = await response.json();
+
+      if (result.success) {
+        setTopic(result.data);
+      } else {
+        console.error('Failed to add quick idea:', result.error);
+      }
+    } catch (error) {
+      console.error('Error adding quick idea:', error);
+    }
   };
 
   const handleTranscript = async (text: string, speaker?: string) => {
@@ -398,31 +517,109 @@ export default function TopicDetailPage() {
                           </td>
 
                           {/* 各観点列の詳細 */}
-                          {topic.axes.map((axis, index) => (
-                            <td
-                              key={index}
-                              className="px-6 py-4 border-t border-gray-200 align-top w-[200px]"
-                            >
-                              <div className="space-y-2">
-                                {idea.evaluations[axis] ? (
-                                  <div className="bg-white p-3 rounded-lg border border-blue-200">
-                                    <div className="text-xs font-medium text-blue-900 mb-2">
-                                      詳細評価
+                          {topic.axes.map((axis, index) => {
+                            const isEditing =
+                              editingEvaluation?.ideaId === idea.id &&
+                              editingEvaluation?.axis === axis;
+                            const hasEvaluation = idea.evaluations[axis];
+
+                            return (
+                              <td
+                                key={index}
+                                className="px-6 py-4 border-t border-gray-200 align-top w-[200px]"
+                              >
+                                <div className="space-y-2">
+                                  {isEditing ? (
+                                    <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                      <div className="text-xs font-medium text-blue-900 mb-2">
+                                        評価を編集
+                                      </div>
+                                      <Textarea
+                                        value={editingValue}
+                                        onChange={(e) =>
+                                          setEditingValue(e.target.value)
+                                        }
+                                        className="text-sm min-h-[100px] mb-2"
+                                        placeholder="評価内容を入力..."
+                                      />
+                                      <div className="flex gap-1">
+                                        <Button
+                                          size="sm"
+                                          onClick={handleSaveEvaluation}
+                                          className="h-7 px-2"
+                                        >
+                                          <Check className="h-3 w-3 mr-1" />
+                                          保存
+                                        </Button>
+                                        <Button
+                                          size="sm"
+                                          variant="outline"
+                                          onClick={handleCancelEdit}
+                                          className="h-7 px-2"
+                                        >
+                                          <X className="h-3 w-3 mr-1" />
+                                          キャンセル
+                                        </Button>
+                                      </div>
                                     </div>
-                                    <div className="text-sm text-gray-700 break-words">
-                                      {idea.evaluations[axis]}
+                                  ) : (
+                                    <div className="group relative">
+                                      {hasEvaluation ? (
+                                        <div className="bg-white p-3 rounded-lg border border-blue-200">
+                                          <div className="flex items-center justify-between mb-2">
+                                            <div className="text-xs font-medium text-blue-900">
+                                              詳細評価
+                                            </div>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() =>
+                                                handleEditEvaluation(
+                                                  idea.id,
+                                                  axis,
+                                                  idea.evaluations[axis] || ''
+                                                )
+                                              }
+                                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              title="評価を編集"
+                                            >
+                                              <Edit3 className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                          <div className="text-sm text-gray-700 break-words">
+                                            {idea.evaluations[axis]}
+                                          </div>
+                                        </div>
+                                      ) : (
+                                        <div className="bg-gray-100 p-3 rounded-lg border border-gray-200 group-hover:bg-gray-50">
+                                          <div className="flex items-center justify-between mb-1">
+                                            <div className="text-xs text-gray-500 italic">
+                                              この観点での評価はまだ行われていません
+                                            </div>
+                                            <Button
+                                              size="sm"
+                                              variant="ghost"
+                                              onClick={() =>
+                                                handleEditEvaluation(
+                                                  idea.id,
+                                                  axis,
+                                                  ''
+                                                )
+                                              }
+                                              className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                              title="評価を追加"
+                                            >
+                                              <Edit3 className="h-3 w-3" />
+                                            </Button>
+                                          </div>
+                                        </div>
+                                      )}
                                     </div>
-                                  </div>
-                                ) : (
-                                  <div className="bg-gray-100 p-3 rounded-lg border border-gray-200">
-                                    <div className="text-xs text-gray-500 italic">
-                                      この観点での評価はまだ行われていません
-                                    </div>
-                                  </div>
-                                )}
-                              </div>
-                            </td>
-                          ))}
+                                  )}
+                                </div>
+                              </td>
+                            );
+                          })}
 
                           {/* 操作列の詳細 */}
                           <td className="px-6 py-4 border-t border-gray-200 text-center w-[100px]">
@@ -439,14 +636,24 @@ export default function TopicDetailPage() {
                 {/* アイデア追加行 */}
                 <tr className="bg-blue-50 hover:bg-blue-100">
                   <td colSpan={topic.axes.length + 2} className="px-6 py-4">
-                    <Button
-                      variant="ghost"
-                      className="w-full text-blue-600 hover:text-blue-700 flex items-center justify-center gap-2"
-                      onClick={() => setIsIdeaModalOpen(true)}
-                    >
-                      <Plus className="h-4 w-4" />
-                      アイデアを追加
-                    </Button>
+                    <div className="flex gap-2 justify-center">
+                      <Button
+                        variant="ghost"
+                        className="flex-1 text-blue-600 hover:text-blue-700 flex items-center justify-center gap-2"
+                        onClick={() => setIsQuickIdeaModalOpen(true)}
+                      >
+                        <Plus className="h-4 w-4" />
+                        クイック追加
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        className="flex-1 text-blue-600 hover:text-blue-700 flex items-center justify-center gap-2"
+                        onClick={() => setIsIdeaModalOpen(true)}
+                      >
+                        <Plus className="h-4 w-4" />
+                        詳細評価で追加
+                      </Button>
+                    </div>
                   </td>
                 </tr>
               </tbody>
@@ -466,10 +673,19 @@ export default function TopicDetailPage() {
             <p className="text-gray-600 mb-6">
               最初のアイデアを追加して評価を始めましょう
             </p>
-            <Button onClick={() => setIsIdeaModalOpen(true)}>
-              <Plus className="h-4 w-4 mr-2" />
-              アイデアを追加
-            </Button>
+            <div className="flex gap-3 justify-center">
+              <Button onClick={() => setIsQuickIdeaModalOpen(true)}>
+                <Plus className="h-4 w-4 mr-2" />
+                クイック追加
+              </Button>
+              <Button
+                variant="outline"
+                onClick={() => setIsIdeaModalOpen(true)}
+              >
+                <Plus className="h-4 w-4 mr-2" />
+                詳細評価で追加
+              </Button>
+            </div>
           </div>
         )}
 
@@ -490,6 +706,24 @@ export default function TopicDetailPage() {
               .join('\n') || ''
           }
           onSubmit={handleAddIdea}
+        />
+
+        <QuickIdeaModal
+          isOpen={isQuickIdeaModalOpen}
+          onClose={() => setIsQuickIdeaModalOpen(false)}
+          onSubmit={handleQuickAddIdea}
+          topicName={topic.name}
+          topicGoal={topic.goal}
+          axes={topic.axes}
+          existingIdeas={topic.ideas.map((idea) => ({
+            name: idea.name,
+            description: idea.description,
+          }))}
+          transcript={
+            topic.transcript?.entries
+              .map((entry) => `[${entry.speaker || '不明'}] ${entry.text}`)
+              .join('\n') || ''
+          }
         />
 
         <AddAxisModal
