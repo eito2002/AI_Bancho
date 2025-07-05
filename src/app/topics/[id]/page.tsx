@@ -318,6 +318,47 @@ export default function TopicDetailPage() {
     }
   };
 
+  const handleTranscriptEntries = async (
+    entries: Array<{ speaker: string; text: string }>
+  ) => {
+    if (!topic) return;
+
+    try {
+      // 複数のエントリを順次保存
+      for (const entry of entries) {
+        const response = await fetch('/api/transcript', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            topicId: topic.id,
+            text: entry.text,
+            speaker: entry.speaker,
+          }),
+        });
+
+        const result = await response.json();
+        if (!result.success) {
+          console.error('文字起こし保存失敗:', result.error);
+        }
+      }
+
+      // 議題データを再取得して文字起こしデータを更新
+      await fetchTopicDetail(topic.id);
+
+      // TranscriptPanelが開いていない場合は開く
+      if (!isTranscriptPanelOpen) {
+        setIsTranscriptPanelOpen(true);
+      }
+
+      alert(`文字起こし完了: ${entries.length}件のエントリが追加されました`);
+    } catch (error) {
+      console.error('文字起こし保存エラー:', error);
+      alert('文字起こしの保存中にエラーが発生しました。');
+    }
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -366,6 +407,7 @@ export default function TopicDetailPage() {
           <div className="flex gap-2">
             <RecordingButton
               onTranscript={handleTranscript}
+              onTranscriptEntries={handleTranscriptEntries}
               className="text-sm"
             />
             <Button

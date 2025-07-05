@@ -6,11 +6,15 @@ import { Mic, Square } from 'lucide-react';
 
 interface RecordingButtonProps {
   onTranscript?: (text: string, speaker?: string) => void;
+  onTranscriptEntries?: (
+    entries: Array<{ speaker: string; text: string }>
+  ) => void;
   className?: string;
 }
 
 export function RecordingButton({
   onTranscript,
+  onTranscriptEntries,
   className,
 }: RecordingButtonProps) {
   const [isRecording, setIsRecording] = useState(false);
@@ -99,8 +103,14 @@ export function RecordingButton({
 
       const result = await response.json();
 
-      if (result.success && result.transcript) {
-        onTranscript?.(result.transcript, result.speaker);
+      if (result.success) {
+        if (result.entries && onTranscriptEntries) {
+          // 複数エントリの場合
+          onTranscriptEntries(result.entries);
+        } else if (result.transcript && onTranscript) {
+          // 単一エントリの場合（後方互換性）
+          onTranscript(result.transcript, result.speaker);
+        }
       } else {
         console.error('文字起こし失敗:', result.error);
         alert('音声の文字起こしに失敗しました。');

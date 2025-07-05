@@ -31,9 +31,6 @@ export async function POST(request: NextRequest) {
     // Gemini Pro を使用
     const model = genAI.getGenerativeModel({ model: 'gemini-2.5-flash' });
 
-    // 音声データを base64 からバイナリに変換
-    const audioData = Uint8Array.from(atob(audio), (c) => c.charCodeAt(0));
-
     // Gemini に音声データを送信して文字起こし
     const prompt = `この音声ファイルの内容を日本語で文字起こししてください。話者が複数いる場合は、可能な限り話者を識別してください。
     
@@ -54,17 +51,12 @@ export async function POST(request: NextRequest) {
 
     const transcript = result.response.text();
 
-    // 話者を識別
-    let speaker = '不明';
-    const speakerMatch = transcript.match(/^(話者[A-Z]|[A-Z]+):/);
-    if (speakerMatch) {
-      speaker = speakerMatch[1];
-    }
+    // 文字起こし結果をパースして話者ごとに分割
+    const parsedEntries = parseTranscriptBySpeaker(transcript);
 
     return NextResponse.json({
       success: true,
-      transcript: transcript.replace(/^(話者[A-Z]|[A-Z]+):/, '').trim(),
-      speaker,
+      entries: parsedEntries,
       fullTranscript: transcript,
     });
   } catch (error) {
@@ -89,4 +81,49 @@ export async function POST(request: NextRequest) {
       { status: 500 }
     );
   }
+}
+
+// 文字起こし結果を話者ごとに分割する関数
+function parseTranscriptBySpeaker(
+  transcript: string
+): Array<{ speaker: string; text: string }> {
+  const entries: Array<{ speaker: string; text: string }> = [];
+
+  // 改行で分割
+  const lines = transcript.split('\n').filter((line) => line.trim());
+
+  for (const line of lines) {
+    const trimmedLine = line.trim();
+    if (!trimmedLine) continue;
+
+    // 話者識別パターン: "話者A:", "A:", "田中:", "司会:", など
+    const speakerMatch = trimmedLine.match(
+      /^(話者[A-Z]|[A-Z]+|[ぁ-んァ-ヶー一-龯]+|司会|モデレーター|参加者[0-9]*)\s*[:：]\s*(.+)$/
+    );
+
+    if (speakerMatch) {
+      // 話者が識別できた場合
+      const speaker = speakerMatch[1];
+      const text = speakerMatch[2].trim();
+      if (text) {
+        entries.push({ speaker, text });
+      }
+    } else {
+      // 話者が識別できない場合は前のエントリに追加するか、新しいエントリとして追加
+      if (entries.length > 0) {
+        // 前のエントリに追加
+        entries[entries.length - 1].text += ' ' + trimmedLine;
+      } else {
+        // 最初のエントリとして追加
+        entries.push({ speaker: '不明', text: trimmedLine });
+      }
+    }
+  }
+
+  // エントリが空の場合は、全体を一つのエントリとして扱う
+  if (entries.length === 0) {
+    entries.push({ speaker: '不明', text: transcript.trim() });
+  }
+
+  return entries;
 }
