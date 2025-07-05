@@ -607,7 +607,8 @@ export function IdeaEvaluationModal({
                   アイデアが追加されました！
                 </h3>
                 <p className="text-gray-600">
-                  「{ideaName}」の評価が完了し、テーブルに追加されました。
+                  「{ideaName}
+                  」の評価が完了し、テーブルに追加されました。
                 </p>
               </div>
 

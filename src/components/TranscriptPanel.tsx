@@ -147,7 +147,9 @@ export function TranscriptPanel({
                 <div className="w-full bg-gray-200 rounded-full h-1">
                   <div
                     className="bg-green-500 h-1 rounded-full"
-                    style={{ width: `${entry.confidence * 100}%` }}
+                    style={{
+                      width: `${entry.confidence * 100}%`,
+                    }}
                   ></div>
                 </div>
               </div>

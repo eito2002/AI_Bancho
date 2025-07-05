@@ -129,7 +129,10 @@ function generateFallbackSuggestions(
       name: 'コスト効率',
       reason: '費用対効果を評価し、予算内での最適解を見つけるため',
     },
-    { name: '実現可能性', reason: '技術的・組織的な実行可能性を判断するため' },
+    {
+      name: '実現可能性',
+      reason: '技術的・組織的な実行可能性を判断するため',
+    },
     {
       name: '効果の大きさ',
       reason: '期待される成果やインパクトの規模を評価するため',
@@ -144,7 +147,10 @@ function generateFallbackSuggestions(
       name: 'ユーザビリティ',
       reason: '利用者の使いやすさや満足度を重視するため',
     },
-    { name: '拡張性', reason: '将来的な成長や変更への対応力を評価するため' },
+    {
+      name: '拡張性',
+      reason: '将来的な成長や変更への対応力を評価するため',
+    },
   ];
 
   // 既存の軸と重複しない提案を選択
